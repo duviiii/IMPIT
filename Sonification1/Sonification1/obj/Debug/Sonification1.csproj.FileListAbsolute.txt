@@ -1,0 +1,10 @@
+c:\users\duvi\documents\visual studio 2012\Projects\Sonification1\Sonification1\bin\Debug\Sonification1.exe.config
+c:\users\duvi\documents\visual studio 2012\Projects\Sonification1\Sonification1\bin\Debug\Sonification1.exe
+c:\users\duvi\documents\visual studio 2012\Projects\Sonification1\Sonification1\bin\Debug\Sonification1.pdb
+c:\users\duvi\documents\visual studio 2012\Projects\Sonification1\Sonification1\obj\Debug\Sonification1.csprojResolveAssemblyReference.cache
+c:\users\duvi\documents\visual studio 2012\Projects\Sonification1\Sonification1\obj\Debug\Sonification1.Form1.resources
+c:\users\duvi\documents\visual studio 2012\Projects\Sonification1\Sonification1\obj\Debug\Sonification1.Properties.Resources.resources
+c:\users\duvi\documents\visual studio 2012\Projects\Sonification1\Sonification1\obj\Debug\Sonification1.csproj.GenerateResource.Cache
+c:\users\duvi\documents\visual studio 2012\Projects\Sonification1\Sonification1\obj\Debug\Sonification1.exe
+c:\users\duvi\documents\visual studio 2012\Projects\Sonification1\Sonification1\obj\Debug\Sonification1.pdb
+C:\Users\Duvi\Documents\Visual Studio 2012\Projects\Sonification1\Sonification1\obj\Debug\Sonification1.Form2.resources
