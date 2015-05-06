@@ -52,20 +52,37 @@ namespace Sonification1
             string filepath = @"E:\sample.wav";
             int sampleRate = 44000;
             // int low_frequency = 4; // lower frequency of later use
-            int high_frequency = 1000;
-      
+            int high_frequency = 300;
+            int divide_size = 4;
+            double sound_length = 2; // on second
+
             // Get the background image and crop out the selected area
             Image img = this.BackgroundImage;
             Rectangle cropRect = new Rectangle(startPoint.X-10, startPoint.Y-30, endPoint.X - startPoint.X, endPoint.Y - startPoint.Y);
             Bitmap clone = new Bitmap(img);
             Bitmap cropped = clone.Clone(cropRect, clone.PixelFormat);
 
-            // TODO: Split selected area into 4x4 field    
+            // Split selected area into 4x4 field    
+            Bitmap[][] cropped_matrix = select_subimage(cropped, divide_size);
 
             // TODO: Generate Sin wave for each area, merged them into one sound data
-            // Generate Sin wave
-            var soundData = CreateSinWave(cropped, sampleRate, high_frequency, TimeSpan.FromSeconds(0.02), 1d);
+            List<byte> divided_sound_data = new List<byte>();
+            TimeSpan divided_sound_length = TimeSpan.FromMilliseconds(sound_length*1000 / (divide_size * divide_size));
+
+            for (int i = 0; i < divide_size; i++) {
+                for (int j = 0; j < divide_size; j++) {
+                    // Generate Sin wave
+                    Bitmap current = cropped_matrix[i][j];
+
+                    var tmp = CreateSinWave(current, sampleRate, high_frequency, divided_sound_length, 1d);
+                    // Add sound information into data list
+                    divided_sound_data.AddRange(tmp);
+                }
+            }
             
+            // convert data list into data array
+            var soundData = divided_sound_data.ToArray();
+
             // Save sound data into output .wav file
             using (FileStream fs = new FileStream(filepath, FileMode.Create))
             {
@@ -73,7 +90,7 @@ namespace Sonification1
                 fs.Write(soundData, 0, soundData.Length);
                 fs.Close();
             }
-
+            
             // replay the file
             SoundPlayer player = new SoundPlayer(filepath);               
             player.Play();
@@ -146,7 +163,7 @@ namespace Sonification1
             int sampleCount = (int)(((double)sampleRate) * length.TotalSeconds);
             short[] tempBuffer = new short[sampleCount];
             byte[] retVal = new byte[sampleCount*2];
-            double new_frequency = frequency*(avg/int.MaxValue);
+            double new_frequency = frequency*(1 + avg/int.MaxValue);
             double step = Math.PI * 2.0d * new_frequency/sampleRate;
             double current = 0;
 
@@ -200,6 +217,35 @@ namespace Sonification1
             //targetStream.Write(PackageInt(0,2), 0, 2);//Extra param size
             targetStream.Write(SUBCHUNK_ID, 0, SUBCHUNK_ID.Length);
             targetStream.Write(PackageInt(byteStreamSize, 4), 0, 4);
+        }
+
+        private Bitmap[][] select_subimage(Bitmap source, int divide_size) {
+
+            Bitmap[][] reval = new Bitmap[divide_size][];
+            
+            for (int i=0; i<divide_size; i++){
+                reval[i] = new Bitmap[divide_size];
+            }
+
+            int sub_start_x = 0;
+            int sub_start_y = 0;
+            int sub_width = 0;
+            int sub_height = 0;
+
+            sub_width = source.Width/divide_size-1;
+            sub_height = source.Height/divide_size-1;
+
+            for (int i = 0; i < divide_size; i++) {
+                for (int j = 0; j < divide_size; j++) {
+                    sub_start_x = i * sub_width;
+                    sub_start_y = i * sub_height;
+                    reval[i][j] = source.Clone(
+                        new Rectangle(sub_start_x, sub_start_y, sub_width, sub_height), 
+                        source.PixelFormat);
+                }
+            }
+
+            return reval;
         }
     }
 }
