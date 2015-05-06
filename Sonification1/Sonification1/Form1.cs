@@ -66,7 +66,7 @@ namespace Sonification1
             Bitmap[][] cropped_matrix = select_subimage(cropped, divide_size);
 
             // TODO: Generate Sin wave for each area, merged them into one sound data
-            List<byte> divided_sound_data = new List<byte>();
+            List<short> divided_sound_data = new List<short>();
             TimeSpan divided_sound_length = TimeSpan.FromMilliseconds(sound_length*1000 / (divide_size * divide_size));
 
             for (int i = 0; i < divide_size; i++) {
@@ -81,13 +81,14 @@ namespace Sonification1
             }
             
             // convert data list into data array
-            var soundData = divided_sound_data.ToArray();
+            short[] soundDataShort = divided_sound_data.ToArray();
+            byte[] soundDataByte = convertShorttoByte(soundDataShort);
 
             // Save sound data into output .wav file
             using (FileStream fs = new FileStream(filepath, FileMode.Create))
             {
-                WriteHeader(fs, soundData.Length, 1, sampleRate);
-                fs.Write(soundData, 0, soundData.Length);
+                WriteHeader(fs, soundDataByte.Length, 1, sampleRate);
+                fs.Write(soundDataByte, 0, soundDataByte.Length);
                 fs.Close();
             }
             
@@ -146,7 +147,7 @@ namespace Sonification1
             return (double)sum/ a.Length;
         }
 
-        public static byte[] CreateSinWave(
+        public static short[] CreateSinWave(
             Bitmap img,
             int sampleRate,
             double frequency,
@@ -161,20 +162,18 @@ namespace Sonification1
             double avg = arrayAverage(img_int);
 
             int sampleCount = (int)(((double)sampleRate) * length.TotalSeconds);
-            short[] tempBuffer = new short[sampleCount];
-            byte[] retVal = new byte[sampleCount*2];
+            short[] retVal = new short[sampleCount];
             double new_frequency = frequency*(1 + avg/int.MaxValue);
             double step = Math.PI * 2.0d * new_frequency/sampleRate;
             double current = 0;
 
-            for (int i = 0; i < tempBuffer.Length; ++i)
+            for (int i = 0; i < retVal.Length; ++i)
             {
                 short tmp = (short)(Math.Sin(current) * magnitude * (short.MaxValue));
-                tempBuffer[i] = tmp;
+                retVal[i] = tmp;
                 current += step;
             }
 
-            Buffer.BlockCopy(tempBuffer, 0, retVal, 0, retVal.Length);
             return retVal;
         }
 
@@ -246,6 +245,12 @@ namespace Sonification1
             }
 
             return reval;
+        }
+
+        private byte[] convertShorttoByte(short[] source) {
+            byte[] retVal = new byte[source.Length * 2];
+            Buffer.BlockCopy(source, 0, retVal, 0, retVal.Length);
+            return retVal;
         }
     }
 }
