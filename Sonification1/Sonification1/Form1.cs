@@ -49,7 +49,10 @@ namespace Sonification1
             // Initialize
             base.OnMouseUp(e);
             isCropping = false;
-            string filepath = @"E:\sample.wav";
+            string filepath_1 = @"E:\sample1.wav";
+            string filepath_2 = @"E:\sample2.wav";
+            string filepath_3 = @"E:\sample3.wav";
+
             int sampleRate = 44000;
             // int low_frequency = 4; // lower frequency of later use
             int high_frequency = 300;
@@ -61,39 +64,110 @@ namespace Sonification1
             Rectangle cropRect = new Rectangle(startPoint.X-10, startPoint.Y-30, endPoint.X - startPoint.X, endPoint.Y - startPoint.Y);
             Bitmap clone = new Bitmap(img);
             Bitmap cropped = clone.Clone(cropRect, clone.PixelFormat);
-
-            // Split selected area into 4x4 field    
-            Bitmap[][] cropped_matrix = select_subimage(cropped, divide_size);
-
-            // TODO: Generate Sin wave for each area, merged them into one sound data
-            List<short> divided_sound_data = new List<short>();
-            TimeSpan divided_sound_length = TimeSpan.FromMilliseconds(sound_length*1000 / (divide_size * divide_size));
-
-            for (int i = 0; i < divide_size; i++) {
-                for (int j = 0; j < divide_size; j++) {
-                    // Generate Sin wave
-                    Bitmap current = cropped_matrix[i][j];
-
-                    var tmp = CreateSinWave(current, sampleRate, high_frequency, divided_sound_length, 1d);
-                    // Add sound information into data list
-                    divided_sound_data.AddRange(tmp);
-                }
-            }
             
-            // convert data list into data array
-            short[] soundDataShort = divided_sound_data.ToArray();
+            // Option 1
+
+            var tmp = CreateSinWave(cropped, sampleRate, high_frequency, TimeSpan.FromSeconds(sound_length), 1d);
+            short[] soundDataShort = tmp;
             byte[] soundDataByte = convertShorttoByte(soundDataShort);
 
             // Save sound data into output .wav file
-            using (FileStream fs = new FileStream(filepath, FileMode.Create))
+            using (FileStream fs = new FileStream(filepath_1, FileMode.Create))
             {
                 WriteHeader(fs, soundDataByte.Length, 1, sampleRate);
                 fs.Write(soundDataByte, 0, soundDataByte.Length);
                 fs.Close();
             }
-            
+
+            // Option 2
+            // Split selected area into 4x4 field    
+            Bitmap[][] cropped_matrix = select_subimage(cropped, divide_size);
+
+            List<short> divided_sound_data = new List<short>();
+            TimeSpan divided_sound_length = TimeSpan.FromMilliseconds(sound_length*1000 / (divide_size * divide_size));
+
+            // create a single sin wave
+            var initial_sound = CreateSimpleSinWave(sampleRate, high_frequency, TimeSpan.FromSeconds(sound_length), 1d);
+
+            // get magnitude value for each subimage
+            short[][] mag_value = getMagnitude(cropped_matrix, divide_size);
+
+            // modify the amplitude (0~100) value of each subimage
+
+            int step = initial_sound.Length / (divide_size * divide_size);
+
+            // Row by row
+            for (int j = 0; j < divide_size; j++) {
+                for (int i = 0; i < divide_size; i++) {
+                    // Generate Sin wave for each area
+                    //Bitmap current = cropped_matrix[i][j];
+
+                    //var tmp = CreateSinWave(current, sampleRate, high_frequency, divided_sound_length, 1d);
+                    // Add sound information into data list
+                    //divided_sound_data.AddRange(tmp);
+                    int start = step*(j*divide_size + i);
+                    int end = start+step;
+                    adjustMagnitude(initial_sound, start, end, mag_value[i][j]);
+                }
+            }
+
+            // convert data list into data array
+            short[] soundDataShort1 = initial_sound;
+            byte[] soundDataByte1 = convertShorttoByte(soundDataShort1);
+
+            // Save sound data into output .wav file
+            using (FileStream fs = new FileStream(filepath_2, FileMode.Create))
+            {
+                WriteHeader(fs, soundDataByte1.Length, 1, sampleRate);
+                fs.Write(soundDataByte1, 0, soundDataByte1.Length);
+                fs.Close();
+            }
+
+            // Option 3
+            // Genereate 16 sin waves with increased frequency
+            short[][] initial_waves = new short[divide_size * divide_size][];
+            double initial_frequency = 50;
+            for (int i = 0; i < divide_size * divide_size; i++) {
+                initial_waves[i] = CreateSimpleSinWave(sampleRate, initial_frequency*(i+1), TimeSpan.FromSeconds(sound_length), 1d);
+            }
+
+            //Adjust amplitude of each sin waves
+            for (int j = 0; j < divide_size; j++)
+            {
+                for (int i = 0; i < divide_size; i++)
+                {
+                    int index = j * divide_size + i;
+                    //short current_mag = (short)(mag_value[i][j] / (index+1));
+                    short current_mag = (short)(mag_value[i][j]);
+                    adjustMagnitude(initial_waves[index], 0, initial_waves[index].Length, mag_value[i][j]);
+                }
+            }
+
+            //Combine 16 sin waves into one final sinwave
+            short[] final_wave = new short[initial_waves[0].Length];
+            for (int i = 0; i< final_wave.Length; i++)  {
+                final_wave[i] = 0;
+                for (int j = 0; j < divide_size * divide_size; j++) {
+                    final_wave[i] = (short)((final_wave[i] + initial_waves[j][i])/2);
+                }
+            }
+
+
+
+            // convert data list into data array
+            short[] soundDataShort2 = final_wave;
+            byte[] soundDataByte2 = convertShorttoByte(soundDataShort2);
+
+            // Save sound data into output .wav file
+            using (FileStream fs = new FileStream(filepath_3, FileMode.Create))
+            {
+                WriteHeader(fs, soundDataByte2.Length, 1, sampleRate);
+                fs.Write(soundDataByte2, 0, soundDataByte2.Length);   
+                fs.Close();
+            }
+
             // replay the file
-            SoundPlayer player = new SoundPlayer(filepath);               
+            SoundPlayer player = new SoundPlayer(filepath_3);
             player.Play();
 
             // Dispay selected area in a new window
@@ -177,6 +251,78 @@ namespace Sonification1
             return retVal;
         }
 
+        public static short[] CreateSimpleSinWave(
+            int sampleRate,
+            double frequency,
+            TimeSpan length,
+            double magnitude) 
+        {
+            int sampleCount = (int)(((double)sampleRate) * length.TotalSeconds);
+            short[] retVal = new short[sampleCount];
+            double step = Math.PI * 2.0d * frequency / sampleRate;
+            double current = 0;
+
+            for (int i = 0; i < retVal.Length; ++i)
+            {
+                short tmp = (short)(Math.Sin(current) * magnitude * (short.MaxValue));
+                retVal[i] = tmp;
+                current += step;
+            }
+
+            return retVal;
+        }
+
+        public static void adjustMagnitude(short[] source, int start_index, int end_index, short magnitude) {
+            for (int i = start_index; i < end_index; i++)
+            {
+                source[i] = (short)(source[i]*magnitude/100);
+            }
+        }
+
+        public static short[][] getMagnitude(Bitmap[][] source, int divide_size) {
+            short[][] retVal = new short[divide_size][];
+            double[][] avgs = new double[divide_size][];
+
+            double max_value = 4*Math.Pow(10,7);
+            //short avg_magnitude = 50;
+
+            for (int i = 0; i < divide_size; i++) {
+                retVal[i] = new short[divide_size];
+                //avgs[i] = new double[divide_size];
+            }
+
+            for (int i = 0; i < divide_size; i++)
+            {
+                for (int j = 0; j < divide_size; j++)
+                {
+                    MemoryStream ms = new MemoryStream();
+                    Bitmap img = source[i][j];
+                    img.Save(ms, System.Drawing.Imaging.ImageFormat.Bmp);
+                    byte[] img_byte = ms.ToArray();
+                    int[] img_int = ByteArrayToIntArray(img_byte, 54);
+                    double avg = arrayAverage(img_int);
+
+                    //if (avg > max_value) {
+                    //    max_value = avg;
+                    //}
+
+                    //avgs[i][j] = avg;
+                    short adjust = (short)(avg / max_value);
+                    retVal[i][j] = (short)(50 + avg / max_value);
+                }
+            }
+
+            //for (int i = 0; i < divide_size; i++)
+            //{
+            //    for (int j = 0; j < divide_size; j++)
+            //    {
+            //        retVal[i][j] = (short)(avg_magnitude * (1 + avgs[i][j] / max_value));
+            //    }
+            //}
+
+            return retVal;
+        }
+
         static byte[] PackageInt(int source, int length = 2)
         {
             var retVal = new byte[length];
@@ -237,7 +383,7 @@ namespace Sonification1
             for (int i = 0; i < divide_size; i++) {
                 for (int j = 0; j < divide_size; j++) {
                     sub_start_x = i * sub_width;
-                    sub_start_y = i * sub_height;
+                    sub_start_y = j * sub_height;
                     reval[i][j] = source.Clone(
                         new Rectangle(sub_start_x, sub_start_y, sub_width, sub_height), 
                         source.PixelFormat);
